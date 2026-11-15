@@ -1,112 +1,58 @@
 # Orion Security Platform
 
-> AI-driven security assessment platform that helps organizations evaluate the security of their systems through a set of specialized scanning agents, managed from a single dashboard.
+AI-assisted security assessment platform. Orion scans networks and web
+applications for vulnerabilities, correlates the findings with AI-driven
+analysis, and turns the result into a report your team can act on —
+all from a single dashboard that doesn't require a pentest background
+to use.
 
-![CI](https://github.com/badsectors4u-arch/orion.ai/actions/workflows/ci_checks.yml/badge.svg)
-**Repo:** https://github.com/badsectors4u-arch/orion.ai
+**Proprietary software.** This repository is private; do not share its
+contents, clone URL, or any part of this codebase outside the organization.
 
-## What it is
+## What you can do with it
 
-Orion helps organizations — from small companies to banks — assess the security of their systems through a set of specialized scanning agents, all managed from one dashboard an IT employee can actually use without being a pentest expert.
+- Run network and web application scans against your own infrastructure.
+- Get findings ranked by real-world risk, not just raw tool output.
+- Ask the built-in assistant ("Ask Orion") about any finding in plain language.
+- Export a client-ready PDF report once a scan completes.
+- Track findings across repeated scans to see what's actually been fixed.
 
-| Agent | Does |
-|---|---|
-| **Network Scanning** | Maps the network, runs known attack checks, visualizes it for the specialist |
-| **Web Scanning** | Same idea, scoped to the company's own web application |
-| **Advanced Scanning** | Deeper scan profile with more features |
-| **Vulnerability Searching** | Pulls CVEs/severity from trusted sources (e.g. MITRE), produces the final technical report |
+## Requirements
 
-An AI "brain" sits on top of all four agents: it's the in-app assistant (**Ask Orion**), it prepares scan parameters before they reach the agents, and it analyzes results before handing them to the Vulnerability Searching agent for the report.
-
-## Tech stack
-
-| Layer | Choice |
-|---|---|
-| Frontend | React 19 + Vite, built in Docker, served by Nginx, installable as a PWA |
-| Backend | Python 3.11 + FastAPI + Uvicorn |
-| Database | PostgreSQL 15 |
-| Queue / workers | Redis 7 + Celery 5 |
-| AI | Ollama (llama3) on the host machine, Groq API as cloud fallback |
-| Web server | Nginx — reverse proxy, static files, WebSocket, PWA headers |
-| Orchestration | Docker Compose |
-| CI/CD | GitHub Actions |
-
-## Network
-
-```
-Port 80    (Nginx)       → serves frontend + proxies /api/* to backend
-Port 8000  (FastAPI)     → internal only
-Port 5432  (PostgreSQL)  → internal only
-Port 6379  (Redis)       → internal only
-Port 11434 (Ollama)      → on the HOST machine, outside Docker (host.docker.internal)
-```
-
-## Repo structure
-
-```
-orion.ai/
-├── app/                        # Frontend (React + Vite)
-├── backend/
-│   └── orion/                  # FastAPI app, agents, AI brain
-├── tests/                      # QA tests
-├── docs/                       # Documentation
-├── scripts/
-│   ├── run_platform.sh / .bat
-│   └── setup_local_ollama.sh / .bat
-├── .github/workflows/ci_checks.yml
-├── docker-compose.yml
-├── docker-compose.dev.yml
-├── nginx.conf
-├── .env.example
-├── .gitignore
-└── README.md
-```
-
-## Team roles
-
-| Role | Owns |
-|---|---|
-| Frontend / UI-UX | `app/src/` |
-| Backend core & DB | `backend/orion/` (core) |
-| Security & AI tools | `backend/orion/` (agents, AI) |
-| DevOps | `docker-compose*.yml`, `nginx.conf`, `.github/`, `scripts/`, `.env.example`, `.gitignore` |
-| QA & tests | `tests/`, `docs/` |
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose (bundled
+  with Docker Desktop, or `docker-compose-plugin` on Linux).
+- 4 GB of free RAM minimum, 8 GB recommended.
+- An API key for your chosen AI provider (see `.env.example`), or a local
+  model runtime if you prefer to keep analysis fully on-premises.
 
 ## Getting started
 
 ```bash
-git clone https://github.com/badsectors4u-arch/orion.ai.git
+git clone <this repository's URL>
 cd orion.ai
-cp .env.example .env            # fill in secrets
-./scripts/setup_local_ollama.sh # pulls llama3 via Ollama on the host
-docker compose up --build -d
-# open http://localhost
+cp .env.example .env
+# open .env and fill in your database password, secret key, and AI provider
+# credentials — see the comments in .env.example for what each value does
 ```
 
-Dev mode (hot-reload):
+Then start everything with one command:
+
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+./scripts/run_platform.sh      # macOS / Linux
+scripts\run_platform.bat       # Windows
 ```
 
-## Branch strategy
+This builds and starts the full platform in the background. Once it's
+up, open **http://localhost** in your browser.
 
-- `main` — protected, PR + review + green CI required
-- `develop` — integration branch, all feature branches merge here first
-- `feature/frontend-ui-ux`, `feature/backend-core-db`, `feature/security-ai-tools`, `feature/devops-docker-pwa`, `feature/qa-tests-thesis`
+To stop it:
 
-Weekly integration day: merge order (least → most likely to conflict) is DevOps → Frontend → Backend → Security/AI → QA.
+```bash
+docker compose down
+```
 
-## CI
+## Support
 
-`.github/workflows/ci_checks.yml` runs on every push/PR to `develop`/`main`:
-1. `frontend-check` — lint + build the React app
-2. `backend-check` — compile + pytest the FastAPI app
-3. `docker-build-check` — full `docker compose up` + `curl /api/health`
-
-## Golden rules (zero-conflict)
-
-1. DevOps never touches `app/src/` or `backend/orion/` core+security code.
-2. QA's `tests/` and `docs/` folders aren't touched by other roles.
-3. Coordinate before changing `requirements.txt` (Backend/Security) or `package.json` (Frontend).
-4. Each role works only on its own feature branch.
-5. Always follow the merge order above on integration day.
+For access requests, bug reports, or questions about deploying Orion
+in your environment, contact your team lead or open an issue in this
+repository.

@@ -407,7 +407,7 @@ async def seed_knowledgebase(db_session: Any = None) -> int:
         return len(OWASP_ARTICLES)
 
     try:
-        # Dynamic import to avoid hard dependency on Member 2's models during standalone tests
+        # Dynamic import to avoid a hard dependency on the API's models during standalone tests
         from orion.models.database import KnowledgebaseArticle
         
         seeded_count = 0

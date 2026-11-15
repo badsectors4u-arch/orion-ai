@@ -11,7 +11,7 @@ PURPOSE: Coordinates the 5-phase intelligent security scanning pipeline:
   🧠 AI Decision Point #3: Smart Deduplication, Attack Chains, & Risk Scoring
   Phase 5: Attack Graph & Final Reporting
 
-This is the MAIN ENTRY POINT called by Member 2 inside Celery worker tasks.
+This is the MAIN ENTRY POINT called from inside Celery worker tasks.
 """
 from __future__ import annotations
 

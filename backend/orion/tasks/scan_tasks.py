@@ -4,7 +4,7 @@ Orion Security Platform — Celery Background Scan Tasks.
 Orchestrates multi-phase security scanning workflows:
 1. Loads scan target and user subscription quota.
 2. Configures AI adapter (BYOK, OpenRouter, or Local Ollama).
-3. Executes Member 3's core ScanOrchestrator pipeline (Nmap, Katana, Nuclei, AIDeepHunter, GhostAnalyst).
+3. Executes the core ScanOrchestrator pipeline (Nmap, Katana, Nuclei, AIDeepHunter, GhostAnalyst).
 4. Persists 4-section vulnerability findings, attack graphs, and attack chains to PostgreSQL/SQLite.
 5. Broadcasts real-time completion events across Redis Pub/Sub channel 'scan:{scan_id}'.
 """
@@ -70,7 +70,7 @@ async def execute_scan_async(scan_id: str) -> None:
             logger.warning(f"[Scan {scan_id}] Redis unavailable for Pub/Sub ({redis_exc}). Proceeding.")
             redis_client = None
 
-        # 4. Instantiate Member 3's central ScanOrchestrator
+        # 4. Instantiate the central ScanOrchestrator
         from orion.core.orchestrator import ScanOrchestrator
         orchestrator = ScanOrchestrator(ai_config=ai_config)
 

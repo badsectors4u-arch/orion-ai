@@ -46,7 +46,7 @@ async def export_scan_pdf(
             detail=f"Scan session '{scan_id}' not found or access denied.",
         )
 
-    # Format findings dictionary for Member 3's PDF engine
+    # Format findings dictionary for the PDF engine
     vuln_list = []
     for v in scan.vulnerabilities:
         vuln_list.append({

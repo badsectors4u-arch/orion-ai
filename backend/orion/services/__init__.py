@@ -1,6 +1,6 @@
 """
 Orion Security Platform — Core Services.
-Exposes public APIs consumed by Member 2 (Backend) and Member 1 (Frontend).
+Exposes public APIs consumed by the API layer and the frontend.
 """
 from orion.services.breach_service import check_email_breach
 from orion.services.kb_service import (

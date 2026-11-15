@@ -2,10 +2,10 @@
 Orion Security Platform — Canonical Data Contracts.
 
 SINGLE SOURCE OF TRUTH for every payload that crosses boundaries between
-Member 3's services, Member 2's API layer, and Member 1's React Flow UI.
+the scan engine, the API layer, and the React Flow UI.
 
 ⚠️  DO NOT rename fields or change types without coordinating with
-    Member 1 (frontend) and Member 2 (backend + DB models).
+    the frontend and the backend/DB models.
     Any drift here whitescreens the React Flow graph or fails DB inserts.
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Severity scale — MUST match Member 1's UI color palette exactly
+# Severity scale — MUST match the UI color palette exactly
 # ──────────────────────────────────────────────────────────────────────
 Severity = Literal["critical", "high", "medium", "low", "info"]
 
@@ -61,12 +61,12 @@ class SanitizedTarget(BaseModel):
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Vulnerability — the atomic unit Member 1 renders and Member 2 stores
+# Vulnerability — the atomic unit the frontend renders and the backend stores
 # ──────────────────────────────────────────────────────────────────────
 class VulnerabilityItem(BaseModel):
     """
-    Structured finding. Matches the exact contract that Member 1 and
-    Member 2 depend on. `extra="forbid"` means any typo in a producer
+    Structured finding. Matches the exact contract that the frontend and
+    backend depend on. `extra="forbid"` means any typo in a producer
     fails immediately instead of silently disappearing from the UI.
     """
     model_config = ConfigDict(extra="forbid")
@@ -90,7 +90,7 @@ class VulnerabilityItem(BaseModel):
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Attack graph — consumed by Member 1's React Flow component
+# Attack graph — consumed by the frontend's React Flow component
 # ──────────────────────────────────────────────────────────────────────
 class GraphNode(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -142,11 +142,11 @@ class AIResponse(BaseModel):
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Progress message — Redis Pub/Sub contract with Member 1's WebSocket
+# Progress message — Redis Pub/Sub contract with the frontend's WebSocket
 # ──────────────────────────────────────────────────────────────────────
 class ProgressMessage(BaseModel):
     """
-    Published to `scan:{scan_id}`. Member 1 subscribes and drives the
+    Published to `scan:{scan_id}`. The frontend subscribes and drives the
     progress bar / "current tool" badge off these fields.
     """
     model_config = ConfigDict(extra="forbid")
@@ -161,7 +161,7 @@ class ProgressMessage(BaseModel):
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Breach check — Member 2 stores this, Member 1 renders it
+# Breach check — the backend stores this, the frontend renders it
 # ──────────────────────────────────────────────────────────────────────
 class BreachAIAnalysis(BaseModel):
     model_config = ConfigDict(extra="ignore")
