@@ -13,7 +13,6 @@ __pycache__/
 *.msi
 *.zip
 *.tar.gz
-nmap*
 
 # Virtual environments
 .venv/

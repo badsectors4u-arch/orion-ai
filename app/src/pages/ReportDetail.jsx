@@ -1,97 +1,101 @@
-import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Download, ShieldCheck } from 'lucide-react'
-import { REPORTS, FINDINGS } from '../data/mock.js'
-import { SeverityBadge } from '../components/Badges.jsx'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Download } from 'lucide-react'
 import PageHeader from '../components/PageHeader.jsx'
-import { useAuth } from '../state/AuthContext.jsx'
+import { SeverityBadge } from '../components/Badges.jsx'
+import * as api from '../lib/api.js'
+import { countBySeverity, formatDateTime, SEVERITY_ORDER } from '../lib/format.js'
 
 export default function ReportDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { can } = useAuth()
-  const report = REPORTS.find((r) => r.id === id)
+  const [scan, setScan] = useState(null)
+  const [error, setError] = useState(null)
+  const [downloading, setDownloading] = useState(false)
 
-  if (!report) {
-    return (
-      <div className="px-8 pt-8">
-        <p className="text-sm text-[color:var(--color-muted)]">Report not found.</p>
-        <button onClick={() => navigate('/reports')} className="mt-3 flex items-center gap-1.5 text-sm text-[color:var(--color-accent-bright)]">
-          <ArrowLeft size={14} /> Back to reports
-        </button>
-      </div>
-    )
+  useEffect(() => {
+    api.getScan(id).then(setScan).catch(setError)
+  }, [id])
+
+  async function handleDownload() {
+    setDownloading(true)
+    try {
+      const { blob, filename } = await api.getScanPdf(id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setError(e)
+    } finally {
+      setDownloading(false)
+    }
   }
 
-  const assetName = report.scan.split(' — ')[0]
-  const relatedFindings = FINDINGS.filter((f) => f.asset === assetName)
+  if (error) {
+    return <div className="p-8 text-sm" style={{ color: 'var(--color-crit)' }}>Couldn&apos;t load this report: {error.message}</div>
+  }
+  if (!scan) {
+    return <div className="p-8 text-sm" style={{ color: 'var(--color-dim)' }}>Loading…</div>
+  }
+
+  const vulns = scan.vulnerabilities || []
+  const counts = countBySeverity(vulns)
+  const ai = scan.ai_analysis || {}
 
   return (
-    <div className="pb-10">
-      <div className="px-8 pt-8">
-        <button onClick={() => navigate('/reports')} className="mb-3 flex items-center gap-1.5 text-xs font-medium text-[color:var(--color-muted)] hover:text-[color:var(--color-text)]">
-          <ArrowLeft size={13} /> Back to reports
-        </button>
-      </div>
+    <div className="pb-8">
       <PageHeader
-        title={report.scan}
-        subtitle={`Generated ${report.date} · ${report.format} format`}
+        title={`Report — ${scan.target_url}`}
+        subtitle={`Completed ${formatDateTime(scan.completed_at)}`}
         action={
-          can('exportReports') && (
-            <button className="btn-primary flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm">
-              <Download size={15} /> Export {report.format}
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate('/reports')} className="btn-ghost flex items-center gap-2 rounded-lg px-3 py-2 text-sm">
+              <ArrowLeft size={15} /> Back
             </button>
-          )
+            <button onClick={handleDownload} disabled={downloading} className="btn-primary flex items-center gap-2 rounded-lg px-4 py-2 text-sm">
+              <Download size={15} /> {downloading ? 'Preparing…' : 'Export PDF'}
+            </button>
+          </div>
         }
       />
 
-      <div className="card mx-8 mt-6 rounded-2xl p-7">
-        <div className="flex items-center gap-3 border-b pb-5" style={{ borderColor: 'var(--color-line)' }}>
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: 'var(--color-accent-soft)' }}>
-            <ShieldCheck size={20} className="text-[color:var(--color-accent-bright)]" />
-          </div>
-          <div>
-            <p className="font-display text-base font-semibold">Executive Summary</p>
-            <p className="text-xs text-[color:var(--color-muted)]">Orion Security Assessment Report</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 py-6 sm:grid-cols-4">
-          <SummaryStat label="Total findings" value={report.findings} />
-          <SummaryStat label="Critical" value={report.critical} tint="var(--color-crit)" />
-          <SummaryStat label="High" value={report.high} tint="var(--color-high)" />
-          <SummaryStat label="Scan date" value={report.date} small />
-        </div>
-
-        <div className="border-t pt-6" style={{ borderColor: 'var(--color-line)' }}>
-          <h3 className="mb-4 text-sm font-semibold">Detailed findings</h3>
-          {relatedFindings.length > 0 ? (
-            <div className="space-y-2.5">
-              {relatedFindings.map((f) => (
-                <div key={f.id} className="flex items-center justify-between gap-3 rounded-xl px-4 py-3" style={{ background: 'var(--color-panel-2)' }}>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{f.title}</p>
-                    <p className="text-xs text-[color:var(--color-dim)]">{f.cve || 'No CVE mapped'} · confidence {Math.round(f.confidence * 100)}%</p>
-                  </div>
-                  <SeverityBadge level={f.severity} />
-                </div>
-              ))}
+      <div className="px-8 pt-6">
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          {SEVERITY_ORDER.map((s) => (
+            <div key={s} className="card rounded-xl p-4 text-center">
+              <p className="font-display text-2xl font-semibold">{counts[s]}</p>
+              <p className="mt-1 text-xs capitalize" style={{ color: 'var(--color-muted)' }}>{s}</p>
             </div>
-          ) : (
-            <p className="text-sm text-[color:var(--color-muted)]">No findings recorded — this scan completed clean or did not run to completion.</p>
-          )}
+          ))}
+        </div>
+
+        {ai.summary && (
+          <div className="card mb-6 rounded-2xl p-5">
+            <h2 className="mb-2 text-sm font-semibold">Executive summary</h2>
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--color-muted)' }}>{ai.summary}</p>
+          </div>
+        )}
+
+        <div className="card rounded-2xl p-5">
+          <h2 className="mb-4 text-sm font-semibold">All findings</h2>
+          <div className="divide-y" style={{ borderColor: 'var(--color-line)' }}>
+            {vulns.map((v) => (
+              <div key={v.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{v.title}</p>
+                  <p className="text-xs" style={{ color: 'var(--color-dim)' }}>
+                    {v.service}{v.port ? `:${v.port}` : ''}{v.cve_id ? ` · ${v.cve_id}` : ''}
+                  </p>
+                </div>
+                <SeverityBadge level={v.severity} />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
-  )
-}
-
-function SummaryStat({ label, value, tint, small }) {
-  return (
-    <div>
-      <p className={small ? 'font-mono text-sm font-semibold' : 'font-display text-2xl font-semibold'} style={tint ? { color: tint } : undefined}>
-        {value}
-      </p>
-      <p className="mt-0.5 text-xs text-[color:var(--color-muted)]">{label}</p>
     </div>
   )
 }

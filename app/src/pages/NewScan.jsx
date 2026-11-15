@@ -1,204 +1,144 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Network, Globe, Radar, Check, ChevronRight, ChevronLeft, Loader2, PartyPopper } from 'lucide-react'
-import { ASSETS } from '../data/mock.js'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { ArrowLeft, Gauge, Globe, Loader2, Radar, ShieldCheck } from 'lucide-react'
 import PageHeader from '../components/PageHeader.jsx'
+import * as api from '../lib/api.js'
 
-const TYPES = [
-  { key: 'network', label: 'Network Scan', icon: Network, desc: 'Discover hosts, open ports, services, and known CVEs across a CIDR range.' },
-  { key: 'web', label: 'Web App Scan', icon: Globe, desc: 'Crawl and test a web application for OWASP Top 10 issues and misconfigurations.' },
-  { key: 'advanced', label: 'Advanced / AI-Guided', icon: Radar, desc: 'Orion\'s AI agent chains recon, exploitation checks, and business-logic tests.' },
+const SCAN_TYPES = [
+  { id: 'quick', label: 'Quick', icon: Radar, desc: 'Fast recon pass — ports and headers only. Good for a first look.' },
+  { id: 'standard', label: 'Standard', icon: ShieldCheck, desc: 'Balanced depth: network + web checks with AI-ranked findings.' },
+  { id: 'full', label: 'Full', icon: Gauge, desc: 'Every scanner plus an extended AI Deep Hunter pass. Most thorough.' },
+  { id: 'web_only', label: 'Web only', icon: Globe, desc: 'Skips network/port scanning — web application checks only.' },
 ]
 
-const STEPS = ['Scan type', 'Target & scope', 'Review & launch']
+const DURATIONS = [
+  { seconds: 120, label: '2 min' },
+  { seconds: 300, label: '5 min' },
+  { seconds: 600, label: '10 min' },
+]
 
 export default function NewScan() {
-  const [step, setStep] = useState(0)
-  const [type, setType] = useState('network')
-  const [assetId, setAssetId] = useState(ASSETS[0].id)
-  const [customTarget, setCustomTarget] = useState('')
-  const [intensity, setIntensity] = useState('balanced')
-  const [launching, setLaunching] = useState(false)
-  const [done, setDone] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
+  const [targetUrl, setTargetUrl] = useState(location.state?.targetUrl || '')
+  const [recentTargets, setRecentTargets] = useState([])
+  const [scanType, setScanType] = useState('standard')
+  const [duration, setDuration] = useState(300)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
 
-  const asset = ASSETS.find((a) => a.id === assetId)
-  const target = customTarget || asset?.value
+  useEffect(() => {
+    api.listTargets().then((list) => setRecentTargets(list || [])).catch(() => {})
+  }, [])
 
-  const launch = () => {
-    setLaunching(true)
-    setTimeout(() => {
-      setLaunching(false)
-      setDone(true)
-    }, 1800)
-  }
-
-  if (done) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center px-8 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full" style={{ background: 'var(--color-ok-soft, rgba(62,207,142,0.12))' }}>
-          <PartyPopper size={26} className="text-[color:var(--color-ok)]" />
-        </div>
-        <h2 className="mt-5 font-display text-xl font-semibold">Scan queued</h2>
-        <p className="mt-1.5 max-w-sm text-sm text-[color:var(--color-muted)]">
-          Your {TYPES.find((t) => t.key === type).label.toLowerCase()} against <span className="font-mono">{target}</span> has been added to the queue. You'll see live progress on the Scans page.
-        </p>
-        <div className="mt-6 flex gap-3">
-          <button onClick={() => navigate('/scans')} className="btn-primary rounded-xl px-5 py-2.5 text-sm">
-            View scans
-          </button>
-          <button onClick={() => navigate('/dashboard')} className="btn-ghost rounded-xl px-5 py-2.5 text-sm">
-            Back to dashboard
-          </button>
-        </div>
-      </div>
-    )
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError('')
+    if (!targetUrl.trim()) {
+      setError('Enter a target URL first.')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const scan = await api.createScan({
+        target_url: targetUrl.trim(),
+        scan_type: scanType,
+        ai_hunter_duration: duration,
+      })
+      navigate(`/scans/${scan.id}`)
+    } catch (err) {
+      setError(err.message || 'Could not start the scan.')
+      setSubmitting(false)
+    }
   }
 
   return (
-    <div className="pb-10">
-      <PageHeader title="New scan" subtitle="Scope a scan in three quick steps." />
+    <div className="pb-8">
+      <PageHeader
+        title="New scan"
+        action={
+          <button onClick={() => navigate('/scans')} className="btn-ghost flex items-center gap-2 rounded-lg px-3 py-2 text-sm">
+            <ArrowLeft size={15} /> Back
+          </button>
+        }
+      />
 
-      <div className="mx-8 mt-6 flex items-center gap-2">
-        {STEPS.map((label, i) => (
-          <div key={label} className="flex flex-1 items-center gap-2">
-            <div className="flex items-center gap-2">
-              <div
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+      <form onSubmit={handleSubmit} className="mx-8 mt-6 max-w-2xl space-y-6">
+        <section className="card rounded-2xl p-5">
+          <h2 className="mb-3 text-sm font-semibold">Target</h2>
+          <input
+            value={targetUrl} onChange={(e) => setTargetUrl(e.target.value)}
+            placeholder="https://example.com"
+            className="input-field w-full rounded-lg px-3 py-2.5 text-sm"
+          />
+          {recentTargets.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {recentTargets.slice(0, 8).map((t) => (
+                <button
+                  key={t.id} type="button" onClick={() => setTargetUrl(t.url)}
+                  className="rounded-full px-3 py-1 text-xs"
+                  style={{ background: 'var(--color-panel-2)', border: '1px solid var(--color-line)', color: 'var(--color-muted)' }}
+                >
+                  {t.url}
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="card rounded-2xl p-5">
+          <h2 className="mb-3 text-sm font-semibold">Scan type</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {SCAN_TYPES.map((t) => (
+              <button
+                type="button" key={t.id} onClick={() => setScanType(t.id)}
+                className="rounded-xl p-4 text-left transition-colors"
                 style={{
-                  background: i <= step ? 'var(--color-accent)' : 'var(--color-panel-2)',
-                  color: i <= step ? '#04101f' : 'var(--color-dim)',
+                  border: `1px solid ${scanType === t.id ? 'var(--color-accent)' : 'var(--color-line)'}`,
+                  background: scanType === t.id ? 'var(--color-accent-soft)' : 'var(--color-panel-2)',
                 }}
               >
-                {i < step ? <Check size={13} /> : i + 1}
-              </div>
-              <span className={`text-xs font-medium ${i === step ? 'text-[color:var(--color-text)]' : 'text-[color:var(--color-dim)]'}`}>{label}</span>
-            </div>
-            {i < STEPS.length - 1 && <div className="h-px flex-1" style={{ background: 'var(--color-line)' }} />}
+                <div className="mb-1.5 flex items-center gap-2 text-sm font-medium">
+                  <t.icon size={16} style={{ color: 'var(--color-accent-bright)' }} /> {t.label}
+                </div>
+                <p className="text-xs" style={{ color: 'var(--color-muted)' }}>{t.desc}</p>
+              </button>
+            ))}
           </div>
-        ))}
-      </div>
+        </section>
 
-      <div className="card mx-8 mt-6 rounded-2xl p-6">
-        {step === 0 && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {TYPES.map((t) => {
-              const active = type === t.key
-              return (
-                <button
-                  key={t.key}
-                  onClick={() => setType(t.key)}
-                  className="flex flex-col items-start gap-3 rounded-2xl p-5 text-left transition-colors"
-                  style={{
-                    background: active ? 'var(--color-accent-soft)' : 'var(--color-panel-2)',
-                    border: `1px solid ${active ? 'var(--color-accent-bright)' : 'var(--color-line)'}`,
-                  }}
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: active ? 'var(--color-accent-bright)' : 'var(--color-panel)' }}>
-                    <t.icon size={18} className={active ? 'text-[#04101f]' : 'text-[color:var(--color-muted)]'} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">{t.label}</p>
-                    <p className="mt-1 text-xs leading-snug text-[color:var(--color-muted)]">{t.desc}</p>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        )}
-
-        {step === 1 && (
-          <div className="max-w-lg space-y-5">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-[color:var(--color-muted)]">Choose a monitored asset</label>
-              <select
-                value={assetId}
-                onChange={(e) => { setAssetId(e.target.value); setCustomTarget('') }}
-                className="input-field w-full rounded-xl px-3.5 py-2.5 text-sm"
+        <section className="card rounded-2xl p-5">
+          <h2 className="mb-3 text-sm font-semibold">AI Deep Hunter budget</h2>
+          <p className="mb-3 text-xs" style={{ color: 'var(--color-muted)' }}>
+            How long the AI-guided analysis phase can spend correlating findings. Longer budgets can surface more, at the cost of a longer scan.
+          </p>
+          <div className="flex gap-2">
+            {DURATIONS.map((d) => (
+              <button
+                type="button" key={d.seconds} onClick={() => setDuration(d.seconds)}
+                className="rounded-lg px-4 py-2 text-sm"
+                style={{
+                  border: `1px solid ${duration === d.seconds ? 'var(--color-accent)' : 'var(--color-line)'}`,
+                  background: duration === d.seconds ? 'var(--color-accent-soft)' : 'var(--color-panel-2)',
+                }}
               >
-                {ASSETS.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name} — {a.value}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-[color:var(--color-muted)]">Or enter a custom target</label>
-              <input
-                value={customTarget}
-                onChange={(e) => setCustomTarget(e.target.value)}
-                placeholder="e.g. 10.0.4.0/24 or https://app.example.com"
-                className="input-field w-full rounded-xl px-3.5 py-2.5 text-sm"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-[color:var(--color-muted)]">Scan intensity</label>
-              <div className="grid grid-cols-3 gap-2">
-                {['light', 'balanced', 'aggressive'].map((level) => (
-                  <button
-                    key={level}
-                    onClick={() => setIntensity(level)}
-                    className="rounded-xl py-2.5 text-xs font-medium capitalize"
-                    style={{
-                      background: intensity === level ? 'var(--color-accent-soft)' : 'var(--color-panel-2)',
-                      border: `1px solid ${intensity === level ? 'var(--color-accent-bright)' : 'var(--color-line)'}`,
-                      color: intensity === level ? 'var(--color-accent-bright)' : 'var(--color-muted)',
-                    }}
-                  >
-                    {level}
-                  </button>
-                ))}
-              </div>
-            </div>
+                {d.label}
+              </button>
+            ))}
           </div>
+        </section>
+
+        {error && (
+          <p className="rounded-lg px-3 py-2 text-sm" style={{ color: 'var(--color-crit)', background: 'var(--color-crit-soft)' }}>
+            {error}
+          </p>
         )}
 
-        {step === 2 && (
-          <div className="max-w-lg space-y-4">
-            <SummaryRow label="Scan type" value={TYPES.find((t) => t.key === type).label} />
-            <SummaryRow label="Target" value={target} mono />
-            <SummaryRow label="Intensity" value={intensity} capitalize />
-            <SummaryRow label="Estimated duration" value={intensity === 'light' ? '~5 min' : intensity === 'aggressive' ? '~25 min' : '~12 min'} />
-            <div className="rounded-xl px-4 py-3 text-xs leading-relaxed text-[color:var(--color-muted)]" style={{ background: 'var(--color-panel-2)', border: '1px solid var(--color-line)' }}>
-              This is a simulated scan for demo purposes — no real traffic will be sent to the target.
-            </div>
-          </div>
-        )}
-
-        <div className="mt-8 flex items-center justify-between">
-          <button
-            onClick={() => setStep((s) => Math.max(0, s - 1))}
-            disabled={step === 0}
-            className="btn-ghost flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm disabled:opacity-0"
-          >
-            <ChevronLeft size={15} /> Back
-          </button>
-          {step < 2 ? (
-            <button
-              onClick={() => setStep((s) => Math.min(2, s + 1))}
-              className="btn-primary flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm"
-            >
-              Continue <ChevronRight size={15} />
-            </button>
-          ) : (
-            <button
-              onClick={launch}
-              disabled={launching}
-              className="btn-primary flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm disabled:opacity-70"
-            >
-              {launching ? <><Loader2 size={15} className="animate-spin" /> Launching…</> : 'Launch scan'}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function SummaryRow({ label, value, mono, capitalize }) {
-  return (
-    <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--color-line)' }}>
-      <span className="text-xs font-medium text-[color:var(--color-muted)]">{label}</span>
-      <span className={`text-sm font-medium ${mono ? 'font-mono' : ''} ${capitalize ? 'capitalize' : ''}`}>{value}</span>
+        <button type="submit" disabled={submitting} className="btn-primary flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm">
+          {submitting && <Loader2 size={15} className="animate-spin" />}
+          {submitting ? 'Starting scan…' : 'Launch scan'}
+        </button>
+      </form>
     </div>
   )
 }

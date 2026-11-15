@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { Sparkles, X, Send } from 'lucide-react'
-import { CHAT_SEED, askOrion } from '../data/mock.js'
+import * as api from '../lib/api.js'
+
+const SEED = [{ role: 'assistant', text: "Hi, I'm Orion. Ask me about your scans, findings, or how to remediate something." }]
 
 export default function AskOrion() {
   const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState(CHAT_SEED)
+  const [messages, setMessages] = useState(SEED)
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const endRef = useRef(null)
@@ -13,16 +15,23 @@ export default function AskOrion() {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, open, thinking])
 
-  const send = () => {
+  const send = async () => {
     const text = input.trim()
-    if (!text) return
+    if (!text || thinking) return
+    const history = messages
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => ({ role: m.role, content: m.text }))
     setMessages((m) => [...m, { role: 'user', text }])
     setInput('')
     setThinking(true)
-    setTimeout(() => {
-      setMessages((m) => [...m, { role: 'assistant', text: askOrion(text) }])
+    try {
+      const reply = await api.chat({ message: text, history })
+      setMessages((m) => [...m, { role: 'assistant', text: reply.answer }])
+    } catch (err) {
+      setMessages((m) => [...m, { role: 'assistant', text: `Sorry, I couldn't process that: ${err.message}` }])
+    } finally {
       setThinking(false)
-    }, 700)
+    }
   }
 
   return (

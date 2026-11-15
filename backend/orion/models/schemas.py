@@ -2,7 +2,7 @@
 Orion Security Platform — Pydantic Validation Schemas (Pydantic v2).
 
 Enforces strict input validation and serialization contracts for all REST and WebSocket endpoints.
-Contracts match frontend TypeScript interfaces and Member 3's core data models exactly.
+Contracts match the frontend TypeScript interfaces and the core data models exactly.
 """
 from __future__ import annotations
 

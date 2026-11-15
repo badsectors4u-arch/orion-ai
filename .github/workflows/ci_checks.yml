@@ -25,8 +25,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: cd backend && pip install -r requirements.txt
-      - run: cd backend && pytest || true
+      - run: cd backend && pip install -r requirements-dev.txt
+      - run: cd backend && pytest
 
   docker-build-check:
     runs-on: ubuntu-latest

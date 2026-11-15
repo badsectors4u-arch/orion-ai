@@ -1,0 +1,4 @@
+# Orion Security Platform — Backend test/dev-only dependencies.
+# Installed in CI and local dev; never required at runtime in production.
+-r requirements.txt
+pytest>=8.0.0

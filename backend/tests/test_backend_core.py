@@ -1,7 +1,7 @@
 """
-Orion Security Platform — Member 2 Comprehensive Integration Test Suite.
+Orion Security Platform — Backend Core Integration Test Suite.
 
-Verifies end-to-end functionality of Member 2 Backend:
+Verifies end-to-end functionality of the backend core API:
 1. System Health Endpoint (/api/health)
 2. Authentication (Register, Login, /me, Custom AI Provider Settings)
 3. Target Management (Create, List, Delete)
@@ -24,7 +24,7 @@ import uuid
 from datetime import datetime
 
 # Configure test environment
-os.environ["DATABASE_URL"] = "sqlite:///./test_orion_m2.db"
+os.environ["DATABASE_URL"] = "sqlite:///./test_orion_backend_core.db"
 os.environ["SECRET_KEY"] = "test-secret-key-orion-backend-2026"
 
 # Ensure backend root is on sys.path
@@ -38,7 +38,7 @@ from orion.models.database import Base, Scan, SessionLocal, Target, User, Vulner
 from orion.services.kb_service import seed_knowledgebase
 
 
-class TestMember2BackendCore(unittest.TestCase):
+class TestBackendCore(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Prepare fresh test database and API test client."""
@@ -60,9 +60,9 @@ class TestMember2BackendCore(unittest.TestCase):
     def tearDownClass(cls):
         """Clean up test database file."""
         Base.metadata.drop_all(bind=engine)
-        if os.path.exists("./test_orion_m2.db"):
+        if os.path.exists("./test_orion_backend_core.db"):
             try:
-                os.remove("./test_orion_m2.db")
+                os.remove("./test_orion_backend_core.db")
             except Exception:
                 pass
 

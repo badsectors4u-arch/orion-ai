@@ -12,21 +12,15 @@ const Scans = lazy(() => import('./pages/Scans.jsx'))
 const NewScan = lazy(() => import('./pages/NewScan.jsx'))
 const ScanDetail = lazy(() => import('./pages/ScanDetail.jsx'))
 const Findings = lazy(() => import('./pages/Findings.jsx'))
-const NetworkMap = lazy(() => import('./pages/NetworkMap.jsx'))
+const Targets = lazy(() => import('./pages/Targets.jsx'))
 const Reports = lazy(() => import('./pages/Reports.jsx'))
 const ReportDetail = lazy(() => import('./pages/ReportDetail.jsx'))
-const UsersRoles = lazy(() => import('./pages/UsersRoles.jsx'))
 const Settings = lazy(() => import('./pages/Settings.jsx'))
 
 function RequireAuth({ children }) {
-  const { user } = useAuth()
+  const { user, initializing } = useAuth()
+  if (initializing) return <RouteFallback />
   if (!user) return <Navigate to="/login" replace />
-  return children
-}
-
-function RequireAdmin({ children }) {
-  const { can } = useAuth()
-  if (!can('manageUsers')) return <Navigate to="/dashboard" replace />
   return children
 }
 
@@ -58,17 +52,9 @@ export default function App() {
           <Route path="scans/new" element={<NewScan />} />
           <Route path="scans/:id" element={<ScanDetail />} />
           <Route path="findings" element={<Findings />} />
-          <Route path="network" element={<NetworkMap />} />
+          <Route path="targets" element={<Targets />} />
           <Route path="reports" element={<Reports />} />
           <Route path="reports/:id" element={<ReportDetail />} />
-          <Route
-            path="users"
-            element={
-              <RequireAdmin>
-                <UsersRoles />
-              </RequireAdmin>
-            }
-          />
           <Route path="settings" element={<Settings />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
