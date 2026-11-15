@@ -1,24 +1,23 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, ScanLine, ListChecks, Share2, FileText, Users, Settings as SettingsIcon, LogOut,
+  LayoutDashboard, ScanLine, ListChecks, Share2, FileText, Settings as SettingsIcon, LogOut,
 } from 'lucide-react'
 import Logo from './Logo.jsx'
-import { RoleBadge } from './Badges.jsx'
+import { PlanBadge } from './Badges.jsx'
 import { useAuth } from '../state/AuthContext.jsx'
 import AskOrion from './AskOrion.jsx'
 
 const NAV = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, always: true },
-  { to: '/scans', label: 'Scans', icon: ScanLine, always: true },
-  { to: '/findings', label: 'Findings', icon: ListChecks, always: true },
-  { to: '/network', label: 'Network Map', icon: Share2, always: true },
-  { to: '/reports', label: 'Reports', icon: FileText, always: true },
-  { to: '/users', label: 'Users & Roles', icon: Users, perm: 'manageUsers' },
-  { to: '/settings', label: 'Settings', icon: SettingsIcon, always: true },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/scans', label: 'Scans', icon: ScanLine },
+  { to: '/findings', label: 'Findings', icon: ListChecks },
+  { to: '/targets', label: 'Targets', icon: Share2 },
+  { to: '/reports', label: 'Reports', icon: FileText },
+  { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ]
 
 export default function AppShell() {
-  const { user, role, can, logout } = useAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
 
   return (
@@ -28,7 +27,7 @@ export default function AppShell() {
           <Logo size={26} />
         </div>
         <nav className="flex-1 space-y-1 px-3">
-          {NAV.filter((item) => item.always || can(item.perm)).map((item) => (
+          {NAV.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -49,8 +48,8 @@ export default function AppShell() {
         <div className="mx-3 mb-3 rounded-xl p-3" style={{ background: 'var(--color-panel-2)', border: '1px solid var(--color-line)' }}>
           <div className="flex items-center justify-between">
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{user?.orgName || 'Organization'}</p>
-              <div className="mt-1"><RoleBadge role={role} /></div>
+              <p className="truncate text-sm font-medium">{user?.username || user?.email}</p>
+              <div className="mt-1"><PlanBadge plan={user?.plan} /></div>
             </div>
             <button
               onClick={() => { logout(); navigate('/login') }}

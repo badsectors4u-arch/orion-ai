@@ -1,123 +1,87 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PlusCircle, Search, Network, Globe, Radar } from 'lucide-react'
-import { SCANS } from '../data/mock.js'
-import { StatusPill } from '../components/Badges.jsx'
+import { Plus, Search } from 'lucide-react'
 import PageHeader from '../components/PageHeader.jsx'
-import { useAuth } from '../state/AuthContext.jsx'
-
-const TYPE_META = {
-  network: { label: 'Network', icon: Network },
-  web: { label: 'Web App', icon: Globe },
-  advanced: { label: 'Advanced', icon: Radar },
-}
+import { StatusPill } from '../components/Badges.jsx'
+import { useScanDetails } from '../hooks/useScans.js'
+import { formatDateTime, formatDuration } from '../lib/format.js'
 
 export default function Scans() {
-  const { can } = useAuth()
-  const [q, setQ] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const { scans, loading, error, refresh } = useScanDetails({ pollMs: 10000 })
+  const [query, setQuery] = useState('')
 
-  const filtered = SCANS.filter((s) => {
-    const matchesQ = s.target.toLowerCase().includes(q.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || s.status === statusFilter
-    return matchesQ && matchesStatus
-  })
+  const filtered = useMemo(() => {
+    const sorted = [...scans].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    if (!query.trim()) return sorted
+    const q = query.toLowerCase()
+    return sorted.filter((s) => s.target_url.toLowerCase().includes(q) || s.scan_type.toLowerCase().includes(q))
+  }, [scans, query])
 
   return (
-    <div className="pb-10">
+    <div className="pb-8">
       <PageHeader
         title="Scans"
-        subtitle="Launch and track network, web, and advanced security scans."
+        subtitle={`${scans.length} scan${scans.length === 1 ? '' : 's'} total`}
         action={
-          can('runScan') && (
-            <Link to="/scans/new" className="btn-primary flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm">
-              <PlusCircle size={16} /> New Scan
-            </Link>
-          )
+          <Link to="/scans/new" className="btn-primary flex items-center gap-2 rounded-lg px-4 py-2 text-sm">
+            <Plus size={16} /> New scan
+          </Link>
         }
       />
 
-      <div className="mt-5 flex flex-wrap items-center gap-3 px-8">
-        <div className="relative">
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--color-dim)]" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search target…"
-            className="input-field w-64 rounded-xl py-2 pl-9 pr-3 text-sm"
-          />
+      <div className="px-8 pt-6">
+        <div className="mb-4 flex items-center gap-2">
+          <div className="relative flex-1 max-w-sm">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-dim)' }} />
+            <input
+              value={query} onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by target or type…"
+              className="input-field w-full rounded-lg py-2 pl-9 pr-3 text-sm"
+            />
+          </div>
+          <button onClick={refresh} className="btn-ghost rounded-lg px-3 py-2 text-sm">Refresh</button>
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="input-field rounded-xl px-3 py-2 text-sm"
-        >
-          <option value="all">All statuses</option>
-          <option value="running">Running</option>
-          <option value="queued">Queued</option>
-          <option value="completed">Completed</option>
-          <option value="failed">Failed</option>
-        </select>
-      </div>
 
-      <div className="card mx-8 mt-4 overflow-hidden rounded-2xl">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-xs uppercase tracking-wide text-[color:var(--color-dim)]" style={{ borderColor: 'var(--color-line)' }}>
-              <th className="px-5 py-3 font-medium">Target</th>
-              <th className="px-5 py-3 font-medium">Type</th>
-              <th className="px-5 py-3 font-medium">Started</th>
-              <th className="px-5 py-3 font-medium">Duration</th>
-              <th className="px-5 py-3 font-medium">Findings</th>
-              <th className="px-5 py-3 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((s) => {
-              const Meta = TYPE_META[s.type]
-              return (
-                <tr
-                  key={s.id}
-                  className="border-b transition-colors last:border-0 hover:bg-[color:var(--color-panel-2)]"
-                  style={{ borderColor: 'var(--color-line)' }}
-                >
-                  <td className="px-5 py-3.5">
-                    <Link to={`/scans/${s.id}`} className="font-medium hover:text-[color:var(--color-accent-bright)]">
-                      {s.target}
-                    </Link>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span className="flex items-center gap-1.5 text-[color:var(--color-muted)]">
-                      <Meta.icon size={14} /> {Meta.label}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 font-mono text-xs text-[color:var(--color-muted)]">{s.started}</td>
-                  <td className="px-5 py-3.5 font-mono text-xs text-[color:var(--color-muted)]">{s.duration}</td>
-                  <td className="px-5 py-3.5">
-                    {s.status === 'running' ? (
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-20 overflow-hidden rounded-full" style={{ background: 'var(--color-panel-2)' }}>
-                          <div className="h-full rounded-full" style={{ width: `${s.progress}%`, background: 'var(--color-accent)' }} />
-                        </div>
-                        <span className="font-mono text-xs text-[color:var(--color-muted)]">{s.progress}%</span>
-                      </div>
-                    ) : (
-                      s.findings
-                    )}
-                  </td>
-                  <td className="px-5 py-3.5"><StatusPill status={s.status} /></td>
-                </tr>
-              )
-            })}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-sm text-[color:var(--color-dim)]">
-                  No scans match your filters.
-                </td>
+        {error && (
+          <p className="mb-4 rounded-lg px-3 py-2 text-sm" style={{ color: 'var(--color-crit)', background: 'var(--color-crit-soft)' }}>
+            Couldn&apos;t load scans: {error.message}
+          </p>
+        )}
+
+        <div className="card overflow-hidden rounded-2xl">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-xs uppercase tracking-wide" style={{ borderColor: 'var(--color-line)', color: 'var(--color-dim)' }}>
+                <th className="px-5 py-3 font-medium">Target</th>
+                <th className="px-5 py-3 font-medium">Type</th>
+                <th className="px-5 py-3 font-medium">Started</th>
+                <th className="px-5 py-3 font-medium">Duration</th>
+                <th className="px-5 py-3 font-medium">Findings</th>
+                <th className="px-5 py-3 font-medium">Status</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={6} className="px-5 py-8 text-center" style={{ color: 'var(--color-dim)' }}>Loading…</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={6} className="px-5 py-8 text-center" style={{ color: 'var(--color-dim)' }}>No scans found.</td></tr>
+              ) : (
+                filtered.map((s) => (
+                  <tr key={s.id} className="border-b last:border-0 hover:bg-[color:var(--color-panel-2)]" style={{ borderColor: 'var(--color-line-soft)' }}>
+                    <td className="px-5 py-3">
+                      <Link to={`/scans/${s.id}`} className="font-medium hover:underline">{s.target_url}</Link>
+                    </td>
+                    <td className="px-5 py-3 capitalize" style={{ color: 'var(--color-muted)' }}>{s.scan_type}</td>
+                    <td className="px-5 py-3" style={{ color: 'var(--color-muted)' }}>{formatDateTime(s.created_at)}</td>
+                    <td className="px-5 py-3" style={{ color: 'var(--color-muted)' }}>{formatDuration(s.created_at, s.completed_at)}</td>
+                    <td className="px-5 py-3">{(s.vulnerabilities || []).length}</td>
+                    <td className="px-5 py-3"><StatusPill status={s.status} /></td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )

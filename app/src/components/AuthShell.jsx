@@ -28,7 +28,7 @@ export default function AuthShell({ title, subtitle, children, footnote }) {
         <div className="card rounded-2xl p-7">{children}</div>
 
         <p className="mt-6 text-center text-xs text-[color:var(--color-dim)]">
-          {footnote || 'Demo environment — all data shown is simulated. No real credentials are stored.'}
+          {footnote || 'Your credentials are sent only to your own Orion backend.'}
         </p>
       </div>
     </div>

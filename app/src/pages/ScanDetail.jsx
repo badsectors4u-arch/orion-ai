@@ -1,134 +1,202 @@
-import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, FileText } from 'lucide-react'
-import { SCANS, FINDINGS } from '../data/mock.js'
-import { SeverityBadge, StatusPill } from '../components/Badges.jsx'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Download, Link2, ShieldAlert } from 'lucide-react'
 import PageHeader from '../components/PageHeader.jsx'
-
-const LOG_STEPS = [
-  'Resolving target and validating scope',
-  'Enumerating hosts / endpoints',
-  'Fingerprinting services and software versions',
-  'Matching against known CVE database',
-  'Running active checks',
-  'Scoring and de-duplicating findings',
-  'Compiling report',
-]
+import { SeverityBadge, StatusPill } from '../components/Badges.jsx'
+import * as api from '../lib/api.js'
+import { formatDateTime, formatDuration } from '../lib/format.js'
 
 export default function ScanDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const scan = SCANS.find((s) => s.id === id)
+  const [scan, setScan] = useState(null)
+  const [error, setError] = useState(null)
+  const [downloading, setDownloading] = useState(false)
+  const [selected, setSelected] = useState(null)
 
-  if (!scan) {
+  useEffect(() => {
+    let cancelled = false
+    let timer
+    async function load() {
+      try {
+        const data = await api.getScan(id)
+        if (cancelled) return
+        setScan(data)
+        setError(null)
+        if (data.status === 'pending' || data.status === 'running') {
+          timer = setTimeout(load, 3000)
+        }
+      } catch (e) {
+        if (!cancelled) setError(e)
+      }
+    }
+    load()
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [id])
+
+  const vulns = useMemo(
+    () => [...(scan?.vulnerabilities || [])].sort(
+      (a, b) => severityRank(a.severity) - severityRank(b.severity),
+    ),
+    [scan],
+  )
+
+  async function handleDownload() {
+    setDownloading(true)
+    try {
+      const { blob, filename } = await api.getScanPdf(id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setError(e)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  if (error) {
     return (
-      <div className="px-8 pt-8">
-        <p className="text-sm text-[color:var(--color-muted)]">Scan not found.</p>
-        <button onClick={() => navigate('/scans')} className="mt-3 flex items-center gap-1.5 text-sm text-[color:var(--color-accent-bright)]">
-          <ArrowLeft size={14} /> Back to scans
-        </button>
+      <div className="p-8">
+        <p className="rounded-lg px-3 py-2 text-sm" style={{ color: 'var(--color-crit)', background: 'var(--color-crit-soft)' }}>
+          Couldn&apos;t load this scan: {error.message}
+        </p>
       </div>
     )
   }
 
-  const relatedFindings = FINDINGS.filter((f) => f.asset === scan.target)
-  const completedSteps = scan.status === 'completed' ? LOG_STEPS.length
-    : scan.status === 'running' ? Math.round((scan.progress / 100) * LOG_STEPS.length)
-    : scan.status === 'failed' ? 2
-    : 0
+  if (!scan) {
+    return <div className="p-8 text-sm" style={{ color: 'var(--color-dim)' }}>Loading…</div>
+  }
+
+  const ai = scan.ai_analysis || {}
+  const isActive = scan.status === 'pending' || scan.status === 'running'
 
   return (
-    <div className="pb-10">
-      <div className="px-8 pt-8">
-        <button onClick={() => navigate('/scans')} className="mb-3 flex items-center gap-1.5 text-xs font-medium text-[color:var(--color-muted)] hover:text-[color:var(--color-text)]">
-          <ArrowLeft size={13} /> Back to scans
-        </button>
-      </div>
+    <div className="pb-8">
       <PageHeader
-        title={scan.target}
-        subtitle={`${scan.agent} · started ${scan.started}`}
-        action={<StatusPill status={scan.status} />}
+        title={scan.target_url}
+        subtitle={`${scan.scan_type} scan · started ${formatDateTime(scan.created_at)}`}
+        action={
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate('/scans')} className="btn-ghost flex items-center gap-2 rounded-lg px-3 py-2 text-sm">
+              <ArrowLeft size={15} /> Back
+            </button>
+            {scan.status === 'completed' && (
+              <button onClick={handleDownload} disabled={downloading} className="btn-primary flex items-center gap-2 rounded-lg px-4 py-2 text-sm">
+                <Download size={15} /> {downloading ? 'Preparing…' : 'Export PDF'}
+              </button>
+            )}
+          </div>
+        }
       />
 
-      <div className="grid grid-cols-1 gap-4 px-8 pt-6 lg:grid-cols-3">
-        <div className="card rounded-2xl p-5 lg:col-span-2">
-          <h3 className="mb-4 text-sm font-semibold">Scan progress</h3>
-          <div className="space-y-0">
-            {LOG_STEPS.map((label, i) => {
-              const state = i < completedSteps ? 'done' : i === completedSteps && scan.status === 'running' ? 'active' : 'pending'
-              return (
-                <div key={label} className="flex items-start gap-3 pb-5 last:pb-0">
-                  <div className="flex flex-col items-center">
-                    <span
-                      className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${state === 'active' ? 'pulse-ring' : ''}`}
-                      style={{
-                        background: state === 'done' ? 'var(--color-ok)' : state === 'active' ? 'var(--color-accent)' : 'var(--color-panel-2)',
-                        color: state === 'pending' ? 'var(--color-dim)' : '#04101f',
-                      }}
-                    >
-                      {state === 'done' ? '✓' : i + 1}
-                    </span>
-                    {i < LOG_STEPS.length - 1 && (
-                      <span className="mt-1 h-full w-px flex-1" style={{ background: 'var(--color-line)', minHeight: 20 }} />
-                    )}
-                  </div>
-                  <p className={`text-sm ${state === 'pending' ? 'text-[color:var(--color-dim)]' : 'text-[color:var(--color-text)]'}`}>
-                    {label}
-                    {state === 'active' && <span className="ml-1 text-[color:var(--color-accent-bright)]">…</span>}
-                  </p>
-                </div>
-              )
-            })}
-          </div>
+      <div className="px-8 pt-6">
+        <div className="card mb-6 flex flex-wrap items-center gap-6 rounded-2xl p-5">
+          <div><StatusPill status={scan.status} /></div>
+          {isActive && (
+            <div className="flex-1 min-w-[160px]">
+              <div className="mb-1 flex justify-between text-xs" style={{ color: 'var(--color-muted)' }}>
+                <span>{scan.current_tool || 'Starting…'}</span>
+                <span>{scan.progress ?? 0}%</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full" style={{ background: 'var(--color-panel-2)' }}>
+                <div className="h-full rounded-full" style={{ width: `${scan.progress ?? 0}%`, background: 'var(--color-accent-bright)' }} />
+              </div>
+            </div>
+          )}
+          {!isActive && (
+            <span className="text-sm" style={{ color: 'var(--color-muted)' }}>
+              Ran for {formatDuration(scan.created_at, scan.completed_at)}
+            </span>
+          )}
+          {scan.risk_score != null && (
+            <span className="text-sm font-medium">Risk score: <span style={{ color: 'var(--color-accent-bright)' }}>{Math.round(scan.risk_score)}</span>/100</span>
+          )}
+          <span className="text-sm" style={{ color: 'var(--color-muted)' }}>{vulns.length} findings</span>
         </div>
 
-        <div className="space-y-4">
-          <div className="card rounded-2xl p-5">
-            <h3 className="mb-3 text-sm font-semibold">Summary</h3>
-            <dl className="space-y-2.5 text-sm">
-              <Row k="Scan type" v={scan.type} capitalize />
-              <Row k="Duration" v={scan.duration} mono />
-              <Row k="Findings" v={scan.findings} />
-              <Row k="Agent" v={scan.agent} />
-            </dl>
+        {ai.summary && (
+          <div className="card mb-6 rounded-2xl p-5">
+            <h2 className="mb-2 text-sm font-semibold">AI executive summary</h2>
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--color-muted)' }}>{ai.summary}</p>
+            {Array.isArray(ai.top_recommendations) && ai.top_recommendations.length > 0 && (
+              <ul className="mt-3 space-y-1.5">
+                {ai.top_recommendations.map((r, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <ShieldAlert size={14} className="mt-0.5 shrink-0" style={{ color: 'var(--color-accent-bright)' }} />
+                    {r}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          {scan.status === 'completed' && (
-            <Link to="/reports" className="card flex items-center justify-between rounded-2xl p-5 transition-colors hover:bg-[color:var(--color-panel-2)]">
-              <span className="flex items-center gap-2 text-sm font-medium">
-                <FileText size={16} className="text-[color:var(--color-accent-bright)]" /> View generated report
-              </span>
-              <ArrowLeft size={14} className="rotate-180 text-[color:var(--color-dim)]" />
-            </Link>
+        )}
+
+        {Array.isArray(scan.attack_chains) && scan.attack_chains.length > 0 && (
+          <div className="card mb-6 rounded-2xl p-5">
+            <h2 className="mb-3 text-sm font-semibold">Attack chains</h2>
+            <div className="space-y-3">
+              {scan.attack_chains.map((chain, i) => (
+                <div key={i} className="rounded-xl p-3" style={{ background: 'var(--color-panel-2)', border: '1px solid var(--color-line)' }}>
+                  <div className="mb-1 flex items-center gap-2 text-sm font-medium">
+                    <Link2 size={14} style={{ color: 'var(--color-high)' }} /> {chain.chain_name}
+                  </div>
+                  {chain.narrative && <p className="text-xs" style={{ color: 'var(--color-muted)' }}>{chain.narrative}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="card rounded-2xl p-5">
+          <h2 className="mb-4 text-sm font-semibold">Findings</h2>
+          {vulns.length === 0 ? (
+            <p className="py-6 text-center text-sm" style={{ color: 'var(--color-dim)' }}>
+              {isActive ? 'Scan in progress — findings will appear here as they are discovered.' : 'No findings.'}
+            </p>
+          ) : (
+            <div className="divide-y" style={{ borderColor: 'var(--color-line)' }}>
+              {vulns.map((v) => (
+                <button
+                  key={v.id} onClick={() => setSelected(selected?.id === v.id ? null : v)}
+                  className="block w-full py-3 text-left first:pt-0 last:pb-0"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{v.title}</p>
+                      <p className="text-xs" style={{ color: 'var(--color-dim)' }}>
+                        {v.service}{v.port ? `:${v.port}` : ''}{v.cve_id ? ` · ${v.cve_id}` : ''}
+                      </p>
+                    </div>
+                    <SeverityBadge level={v.severity} />
+                  </div>
+                  {selected?.id === v.id && (
+                    <div className="mt-3 rounded-lg p-3 text-sm" style={{ background: 'var(--color-panel-2)' }}>
+                      <p className="whitespace-pre-wrap" style={{ color: 'var(--color-muted)' }}>{v.description}</p>
+                      {v.remediation_steps?.length > 0 && (
+                        <>
+                          <p className="mt-3 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-dim)' }}>Remediation</p>
+                          <ul className="mt-1.5 list-disc space-y-1 pl-4">
+                            {v.remediation_steps.map((step, i) => <li key={i}>{step}</li>)}
+                          </ul>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
           )}
         </div>
       </div>
-
-      {relatedFindings.length > 0 && (
-        <div className="card mx-8 mt-4 overflow-hidden rounded-2xl">
-          <div className="border-b px-5 py-3.5" style={{ borderColor: 'var(--color-line)' }}>
-            <h3 className="text-sm font-semibold">Findings from this scan</h3>
-          </div>
-          <div className="divide-y" style={{ borderColor: 'var(--color-line)' }}>
-            {relatedFindings.map((f) => (
-              <div key={f.id} className="flex items-center justify-between gap-3 px-5 py-3.5" style={{ borderColor: 'var(--color-line)' }}>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{f.title}</p>
-                  <p className="text-xs text-[color:var(--color-dim)]">{f.cve || 'No CVE mapped'}</p>
-                </div>
-                <SeverityBadge level={f.severity} />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
 
-function Row({ k, v, mono, capitalize }) {
-  return (
-    <div className="flex items-center justify-between">
-      <dt className="text-[color:var(--color-muted)]">{k}</dt>
-      <dd className={`font-medium ${mono ? 'font-mono' : ''} ${capitalize ? 'capitalize' : ''}`}>{v}</dd>
-    </div>
-  )
+function severityRank(s) {
+  return ['critical', 'high', 'medium', 'low', 'info'].indexOf(s)
 }
